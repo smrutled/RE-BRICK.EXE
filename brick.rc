@@ -1,0 +1,11 @@
+#include <windows.h>
+
+#define IDI_APPICON 908
+#define IDB_BRICK   901
+#define IDB_BALL    902
+#define IDB_PADDLE  904
+
+IDI_APPICON ICON    "brick.ico"
+IDB_BRICK   BITMAP  "bitmap_901.bmp"
+IDB_BALL    BITMAP  "bitmap_902.bmp"
+IDB_PADDLE  BITMAP  "bitmap_904.bmp"
