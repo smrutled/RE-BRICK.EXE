@@ -1,16 +1,21 @@
 import os
 import struct
 
-# The binary path
-EXE_PATH = r"E:\PROGRAMS\WINGAMES\ARCADE\BRICK\BRICK.EXE"
-OUT_DIR = r"c:\Projects\Reverse"
+import sys
 
-def extract_from_exe():
-    if not os.path.exists(EXE_PATH):
-        print(f"Exe not found at {EXE_PATH}")
+# Default paths
+DEFAULT_EXE_PATH = r"E:\PROGRAMS\WINGAMES\ARCADE\BRICK\BRICK.EXE"
+DEFAULT_OUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "gemini"))
+
+def extract_from_exe(exe_path=None, out_dir=None):
+    exe_path = exe_path or (sys.argv[1] if len(sys.argv) > 1 else DEFAULT_EXE_PATH)
+    out_dir = out_dir or (sys.argv[2] if len(sys.argv) > 2 else DEFAULT_OUT_DIR)
+    os.makedirs(out_dir, exist_ok=True)
+    if not os.path.exists(exe_path):
+        print(f"Exe not found at {exe_path}")
         return False
 
-    with open(EXE_PATH, "rb") as f:
+    with open(exe_path, "rb") as f:
         data = f.read()
 
     # Verify MZ header
@@ -65,7 +70,7 @@ def extract_from_exe():
             file_size = 14 + len(raw)
 
             file_header = struct.pack("<2sIHHI", b"BM", file_size, 0, 0, off_bits)
-            bmp_filename = os.path.join(OUT_DIR, f"bitmap_{i}.bmp")
+            bmp_filename = os.path.join(out_dir, f"bitmap_{i}.bmp")
             with open(bmp_filename, "wb") as bf:
                 bf.write(file_header + raw)
             print(f"Saved bitmap_{i}.bmp (Width: {biWidth}, Height: {biHeight}, BPP: {biBitCount})")
@@ -99,7 +104,7 @@ def extract_from_exe():
                     offset_in_ico += len(icon_data)
 
             if ico_entries:
-                ico_path = os.path.join(OUT_DIR, "brick.ico")
+                ico_path = os.path.join(out_dir, "brick.ico")
                 with open(ico_path, "wb") as icof:
                     icof.write(struct.pack("<HHH", 0, 1, len(ico_entries)))
                     for e in ico_entries:

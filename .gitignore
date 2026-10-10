@@ -5,3 +5,8 @@
 .vs/
 *.pdb
 *.ilk
+RCa*
+
+# Debug outputs
+client_shot.bmp
+state.txt

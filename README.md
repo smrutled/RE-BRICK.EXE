@@ -1,118 +1,118 @@
-# RE-BRICK.EXE: Re-engineering a 16-bit Windows 3.1 Game for Modern 64-bit Windows
+# RE-BRICK.EXE: Re-engineering a 16-bit Windows 3.1 Game for x64
 
-> **Demo Project**: Demonstrating automated reverse engineering and modern source porting of a vintage 16-bit Windows executable using an **AI Agent** paired with the **Ghidra MCP Server**.
+> **Comparative Reverse Engineering Project**: Preserving and modernizing a vintage 16-bit Windows 3.1 game for 64-bit Windows through AI-driven reverse engineering with **Ghidra**.
 
-- **Original Game**: [BRICK on the Internet Archive](https://archive.org/details/win3_BRICK)
+- **Original Game**: [BRICK on the Internet Archive](https://archive.org/details/win3_BRICK) (Win16 NE binary, ~10 KB, 1990/1991)
 - **Target Platform**: Modern 64-bit Windows (Windows 10 / 11, x64)
-- **Toolchain**: Microsoft Visual Studio (MSVC) C++17
+- **Toolchain**: Microsoft Visual Studio (MSVC) / x64 Native Tools
+- **MCP Server**: [bethington/ghidra-mcp](https://github.com/bethington/ghidra-mcp)
 
 ---
 
 ## Overview
 
-`BRICK.EXE` is a classic 16-bit Windows 3.1 Breakout / Arkanoid clone distributed as a New Executable (NE) binary for protected-mode x86. Because modern 64-bit editions of Windows dropped NTVDM and native 16-bit executable support, vintage 16-bit Windows binaries cannot run directly on modern 64-bit machines without emulation (such as DOSBox, Winevdm, or virtual machines).
+`BRICK.EXE` is an authentic Windows 3.1 Breakout / Arkanoid clone originally compiled as a 16-bit New Executable (NE) for protected-mode x86. Modern 64-bit Windows dropped native 16-bit executable support (NTVDM), preventing vintage Win16 binaries from running without emulation (e.g. DOSBox, Winevdm).
 
-In this project, an AI coding agent connected directly to a live Ghidra session via the **Ghidra Model Context Protocol (MCP) server** to inspect the binary, decompile its routines, extract its embedded 16-color graphical assets, and re-implement the entire game in clean, idiomatic modern 64-bit C++.
+This repository showcases **two independent AI-driven reverse engineering and porting approaches** using Ghidra connected via the **[Ghidra Model Context Protocol (MCP) server](https://github.com/bethington/ghidra-mcp)**:
 
----
-
-## Reverse Engineering Workflow with Ghidra MCP
-
-The porting process followed these key phases:
-
-### 1. Program Inspection & Segmentation
-Using the Ghidra MCP tools (`get_current_program_info`, `list_segments`, `list_imports`, `list_exports`):
-- Identified the executable format: `New Executable (NE)` for `x86:LE:16:Protected Mode`.
-- Mapped segments:
-  - `Code1`: 0x131c bytes (~4.8 KB) of code.
-  - `Data2`: 0x2da bytes of static data.
-  - `Rsrc0` – `Rsrc4`: 5 embedded resources (DIB bitmaps, icon directory, icon image).
-- Mapped Win16 API imports: `USER` (`CreateWindow`, `SetTimer`, `ClipCursor`, etc.), `GDI` (`BitBlt`, `CreateCompatibleDC`, `Rectangle`, `LineTo`), and `KERNEL` (`InitTask`, `InitApp`).
-
-### 2. Decompilation & Logic Extraction
-Using `decompile_function` and `disassemble_function`:
-- Traced the entry point (`entry` at `1000:0d01`) through `InitTask` and `InitApp` into the game's `WinMain` (`1000:0010`) and `WndProc` (`1000:051a`).
-- Isolated Microsoft C Runtime routines (`rand`, `abs`, startup) from the 9 core game routines.
-- Discovered original variable names preserved in debug strings within the static data segment: `hdcBall`, `hdcBrick`, `hdcTemp`, `hbmpTemp`, `hdcBack`, `hbmpBack`.
-- Decoded game mechanics:
-  - **Brick Matrix**: 8 rows × 12 columns. Bricks are 24 × 12 pixels with 1-pixel spacing.
-  - **Multi-hit Durability**: States 4 & 5 degrade into damaged states 2 & 3, then state 1, then destroyed state 0.
-  - **Ball Physics & Deflection**: Bounces off walls and paddle. Deflection angle scales with horizontal offset from paddle center.
-  - **3D Bevel Rendering**: Authentic Windows 3.1 double-beveled border (`DrawBevel`) with raised outer and sunken inner borders.
-
-### 3. Resource & Asset Extraction
-Resource tables in the NE binary were parsed using a custom Python script (`extract_assets.py` run via `uv`):
-- `brick.ico`: 32×32 16-color application icon (Resource ID 908)
-- `bitmap_901.bmp`: 24×96 16-color brick sprite sheet containing 8 durability/color states (Resource ID 901)
-- `bitmap_902.bmp`: 8×16 16-color ball sprite and 1-bit transparency mask (Resource ID 902)
-- `bitmap_904.bmp`: 48×12 16-color paddle sprite (Resource ID 904)
-
-### 4. Modern 64-bit C++ Architecture & Fixes
-- **Type Safety**: Replaced 16-bit far pointers, Pascal calling conventions, and segment arithmetic with 64-bit types (`INT_PTR`, `LRESULT`, `WPARAM`, `LPARAM`).
-- **Encapsulation**: Wrapped game state, offscreen device contexts, and lifetimes into the `BrickGame` C++ class.
-- **Double-Buffering & High-DPI Scaling**: Implemented clean composite double-buffering with configurable integer scaling (defaulting to 2x for modern high-resolution displays).
-- **Bug Fixes during Iteration**:
-  - Replaced GDI slice-erasing with a clean backbuffer restore (`BitBlt`), eliminating trailing artifacts.
-  - Used `NULL_PEN` (stock object 8) for clean borderless fills on erased life counters.
-  - Unified screen presentation so all brick damage is rendered immediately without artifacts.
+1. **[Gemini Port](gemini/)**: A modular, object-oriented C++17 port using standard Win32 resource scripts (`.rc`), extracted bitmap assets, double-buffering, and configurable high-DPI scaling.
+2. **[Local Model Port](local-model/)**: A self-contained, single-file C++ port generated by a local LLM (**Qwen3.8-Flash-Next-NVFP4**), featuring embedded raw pixel assets, strict disassembly constant fidelity, and headless verification keys.
 
 ---
 
-## File Structure
+## Architectural Comparison
+
+| Dimension | Gemini Port (`gemini/`) | Local Model Port (`local-model/`) |
+|---|---|---|
+| **Authoring Model** | Gemini | Local LLM (Qwen3.8-Flash-Next-NVFP4) |
+| **Architecture** | Modular C++17 class (`BrickGame`, `brick.hpp` / `brick.cpp`) | Single translation unit (`main.cpp`), procedural C-style |
+| **Asset Storage** | Win32 Resource script (`brick.rc`) with external `.bmp` / `.ico` | Bitmaps & masks embedded directly as raw C++ byte arrays |
+| **Asset Pipeline** | Python extractor script (`tools/extract_assets.py`) | Extracted via Ghidra NE resource inspection and embedded inline |
+| **Display & DPI** | Double-buffered backbuffer with configurable integer scaling (2x) | Native 319×329 client size relying on Windows DPI bitmap-stretch |
+| **Verification & Testing** | Manual interactive verification | Built-in headless debug keys (`S` screenshot, `R` reset, `P` state dump) |
+| **Build Process** | `rc.exe` (resources) + `cl.exe` (C++17) | `cl.exe` single command |
+
+---
+
+## Repository Structure
 
 ```text
-├── brick.hpp           # Game architecture, constants, and BrickGame class declaration
-├── brick.cpp           # Modern C++ implementation (WinMain, WndProc, physics, rendering)
-├── brick.rc            # Win32 resource script embedding icon and bitmap sprites
-├── build.bat           # 64-bit MSVC build script
-├── extract_assets.py   # Python script (uv compatible) to extract resources from BRICK.EXE
-├── brick.ico           # Extracted application icon
-├── bitmap_901.bmp      # Extracted brick sprite sheet
-├── bitmap_902.bmp      # Extracted ball sprite & mask
-└── bitmap_904.bmp      # Extracted paddle sprite
+Reverse/
+├── gemini/                        # Gemini reverse-engineered port
+│   ├── README.md                  # Gemini port technical documentation
+│   ├── brick.hpp                  # Class declarations, game constants, state
+│   ├── brick.cpp                  # Modern C++ implementation & WinMain/WndProc
+│   ├── brick.rc                   # Win32 resource script
+│   ├── brick.ico                  # 32x32 16-color application icon
+│   ├── bitmap_901.bmp             # Brick sprite strip (8 states)
+│   ├── bitmap_902.bmp             # Ball sprite & transparency mask
+│   ├── bitmap_904.bmp             # Paddle sprite
+│   └── build.bat                  # Build script (produces brick.exe)
+│
+├── local-model/                   # Local model (Qwen) reverse-engineered port
+│   ├── README.md                  # Local model technical notes & verification
+│   ├── main.cpp                   # Single translation unit port with embedded art
+│   ├── screenshot.png             # Capture of the running port
+│   └── build.bat                  # Build script (produces BRICK.exe)
+│
+└── tools/                         # Shared tools and utilities
+    └── extract_assets.py          # NE resource table asset extractor
 ```
 
 ---
 
-## How to Build & Run
+## Building and Running
 
-### Prerequisites
-- Windows 10 / 11 (64-bit)
-- Visual Studio 2022 (or Build Tools) with **Desktop development with C++** installed
+Both implementations use MSVC and require the **x64 Native Tools Command Prompt for VS** (or a command prompt with Visual Studio Build Tools).
 
-### Building
-Open the **x64 Native Tools Command Prompt for VS** and run:
+### 1. Gemini Port
 
 ```cmd
+cd gemini
 build.bat
-```
-
-This compiles `brick.rc` using `rc.exe` and links `brick.cpp` with MSVC `cl.exe` (`/W4 /O2 /std:c++17`):
-
-```cmd
-Compiling Resources...
-Compiling 64-bit C++ Application...
-Build Successful: brick.exe (x64)
-```
-
-Run the resulting executable:
-```cmd
 brick.exe
+```
+
+### 2. Local Model Port
+
+```cmd
+cd local-model
+build.bat
+BRICK.exe
 ```
 
 ---
 
 ## Controls
 
-| Input | Action |
+Both versions replicate the original Windows 3.1 control scheme:
+
+| Action | Control |
 |---|---|
-| **Mouse Move** | Move paddle left / right |
-| **Left Click** | Lock / capture mouse cursor & start / pause game |
-| **Right Click** | Pause & single-step one simulation frame |
+| **Paddle Movement** | Move mouse horizontally |
+| **Start / Pause** | Left-click (captures mouse and clips cursor) |
+| **Single-Step Frame** | Right-click (advances simulation by one 55 ms frame) |
+
+### Debug Keys (Local Model Port Only)
+- `S`: Save client area snapshot to `client_shot.bmp`
+- `R`: Reset game state
+- `P`: Dump game state machine to `state.txt`
+
+---
+
+## Shared Reverse Engineering Insights
+
+Both models successfully uncovered core mechanics from the ~4.8 KB 16-bit binary:
+- **Brick Matrix**: 8 rows × 12 columns. Bricks are 24 × 12 pixels on a 25 × 13 pitch.
+- **Durability Degradation**: Initial special bricks erode on contact: `4 → 2`, `5 → 3`, `other → 1`, and `1 → 0` (destroyed).
+- **Physics**: 55 ms timer tick, horizontal bounce deflection scaling with offset from paddle center, snap-back corner collision probes.
+- **Life Management**: 3 starting lives, respawn at fixed trajectory (`vx = 2, vy = -5`). Original Win16 binary has no game-over screen (life floor clamped at 1).
 
 ---
 
 ## Acknowledgments
-- Original author of `BRICK.EXE` (1991).
-- [Internet Archive](https://archive.org/details/win3_BRICK) for preserving historical Windows 3.1 software.
-- [National Security Agency (NSA)](https://github.com/NationalSecurityAgency/ghidra) for Ghidra.
+
+- Original author of `BRICK.EXE` (1990/1991).
+- [Internet Archive](https://archive.org/details/win3_BRICK) for software preservation.
+- [NSA Ghidra](https://github.com/NationalSecurityAgency/ghidra) for Ghidra.
+- [bethington/ghidra-mcp](https://github.com/bethington/ghidra-mcp) for the Ghidra Model Context Protocol (MCP) server.
